@@ -8,3 +8,6 @@ Limit: 30
 
 # Displays a smoke when an entity gets deleted.
 DisplayParticles: true
+
+# Whether if you want entities to enter portals or not.
+EntityPortalEnter: true

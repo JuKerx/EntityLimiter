@@ -7,7 +7,7 @@ api-version: 1.19
 load: STARTUP
 commands:
   entitylimiter:
-    description: Command for Entity Limiter plugin.
+    description: Command for EntityLimiter plugin.
     usage: /entitylimiter reload
     aliases: [el]
 
