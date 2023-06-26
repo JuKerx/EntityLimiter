@@ -1,0 +1,19 @@
+name: EntityLimiter
+version: '${project.version}'
+description: A lightweight entity limiter plugin
+author: jukerx
+main: jukerx.entitylimiter.EntityLimiter
+api-version: 1.19
+load: STARTUP
+commands:
+  entitylimiter:
+    description: Command for Entity Limiter plugin.
+    usage: /entitylimiter reload
+    aliases: [el]
+
+permissions:
+  entitylimiter.*:
+    description: All permissions for the EntityLimiter plugin.
+    default: op
+    children:
+      - entitylimiter.reload

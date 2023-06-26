@@ -1,0 +1,10 @@
+# EntityLimiter plugin made by jukerx
+# Contact me on discord (juker#4991) if you have any questions.
+
+# Radius to limit entities per radius of each entity.
+Radius: 30
+# Limit entities per radius.
+Limit: 30
+
+# Displays a smoke when an entity gets deleted.
+DisplayParticles: true
