@@ -1,5 +1,13 @@
 # EntityLimiter
 
-Someone needs to teach me how to use github lmao
-Dont mind the tab completion file 💀
-I'll figure all this out later
+Supports 1.15 up to 1.20+ with Bukkit, Spigot, Paper, Purpur and Folia.
+
+## Commands
+
+- /el setlimit
+- /el setradius
+- /el setheightradius
+- /el portals
+- /el particles
+- /el characterlimit
+- /el reload
