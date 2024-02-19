@@ -1,13 +1,39 @@
 # EntityLimiter plugin made by jukerx
-# Contact me on discord (juker#4991) if you have any questions.
+# For support please join the discord server: https://discord.gg/qvudAGgkE5
 
 # Radius to limit entities per radius of each entity.
+# Set Radius to 0 if you want it to count Globally (Even though minecraft worlds are flat)
 Radius: 30
+# Height of the radius
+HeightRadius: 50
 # Limit entities per radius.
-Limit: 30
+Limit: 2
 
 # Displays a smoke when an entity gets deleted.
 DisplayParticles: true
-
 # Whether if you want entities to enter portals or not.
 EntityPortalEnter: true
+# Limit how long entity names can be, Put 0 to exempt.
+CharacterLimit: 50
+# Replace when name character limit is reached.
+LimitReplacementText: '&cName length is over the limit!'
+
+# Set to true for a entity spawn limit cap.
+SpawnCap: true
+
+# Entities in the specified world(s) will not be affected by the plugin.
+ExemptWorlds:
+  - lobby
+
+# Specified entities will not be affected by the plugin.
+ExemptEntities:
+  - ENDER_DRAGON
+
+# Settings for particles when entities get removed.
+ParticleSettings:
+  particle: SMOKE_NORMAL
+  amount: 25
+  offsetX: 0
+  offsetY: 0.5
+  offsetZ: 0
+  extra: 0.01
