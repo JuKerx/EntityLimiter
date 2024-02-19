@@ -1,27 +1,39 @@
 package jukerx.entitylimiter;
 
-import com.destroystokyo.paper.event.entity.EntityTeleportEndGatewayEvent;
-import org.bukkit.Bukkit;
-import org.bukkit.Particle;
+import com.google.common.collect.Lists;
+import org.bstats.charts.SimplePie;
+import org.bstats.bukkit.Metrics;
+import org.bukkit.*;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Vehicle;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityPortalEvent;
+import org.bukkit.event.entity.EntityPortalExitEvent;
 import org.bukkit.event.entity.EntitySpawnEvent;
+import org.bukkit.event.entity.EntityTeleportEvent;
+import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.vehicle.VehicleCreateEvent;
 import org.bukkit.plugin.java.JavaPlugin;
+import java.util.ArrayList;
+import java.util.List;
+import static net.md_5.bungee.api.ChatColor.translateAlternateColorCodes;
 
 public final class EntityLimiter extends JavaPlugin implements Listener {
-
     static EntityLimiter plugin;
-    static double Version = 1.1;
+    static double Version = 1.5;
 
-    @Override
     public void onEnable() {
-        getCommand("entitylimiter").setExecutor(new ReloadCommand());
-        getCommand("entitylimiter").setTabCompleter(new ReloadCommand());
+        int pluginId = 18970;
+        Metrics metrics = new Metrics(this, pluginId);
+
+        metrics.addCustomChart(new SimplePie("display_particles", () -> String.valueOf(getConfig().getBoolean("DisplayParticles"))));
+
+        getCommand("entitylimiter").setExecutor(new Command());
+        getCommand("entitylimiter").setTabCompleter(new Command());
 
         getConfig().options().copyDefaults();
         saveDefaultConfig();
@@ -30,79 +42,294 @@ public final class EntityLimiter extends JavaPlugin implements Listener {
         Bukkit.getPluginManager().registerEvents(this, this);
     }
 
-    @EventHandler
+    // Very messy code that I'll redo later, this was one of my first plugins lol (Whatever works, works)
+
+    @EventHandler(priority = EventPriority.NORMAL)
     public void onEntitySpawn(EntitySpawnEvent e) {
+        if (e.isCancelled()) {
+            return;
+        }
         Entity entity = e.getEntity();
         int Entities = 0;
-        for (Entity ent : entity.getWorld().getNearbyEntities(entity.getLocation(), getConfig().getDouble("Radius"), 500, getConfig().getDouble("Radius"))) {
-            if (!(ent instanceof Player) && (ent.getPassengers().isEmpty())) {
-                Entities += 1;
-                if (Entities >= getConfig().getInt("Limit")) {
-                    if (getConfig().getBoolean("DisplayParticles")) {
-                        ent.getWorld().spawnParticle(Particle.SMOKE_NORMAL, ent.getLocation(), 25, 0, 0.5, 0, 0.01);
-                    }
-                    ent.remove();
+
+        if (getConfig().getDouble("Radius") > 0) {
+            for (Entity ent : entity.getWorld().getNearbyEntities(entity.getLocation(), getConfig().getDouble("Radius"), getConfig().getDouble("HeightRadius"), getConfig().getDouble("Radius"))) {
+                if ( !(ent instanceof Player) && !getConfig().getStringList("ExemptWorlds").contains(entity.getWorld().getName()) || !getConfig().getStringList("ExemptEntities").contains(ent.getType().name())) {
+                    Entities++;
                 }
+                if (getConfig().getStringList("ExemptEntities").contains(ent.getType().name()) || getConfig().getStringList("ExemptWorlds").contains(ent.getWorld().getName())) {
+                    continue;
+                }
+                if (!(ent instanceof Player) && ent.getPassengers().isEmpty() && Entities >= getConfig().getInt("Limit")) {
+                    if (!getConfig().getBoolean("SpawnCap")) {
+                        if (getConfig().getBoolean("DisplayParticles")) {
+                            ent.getWorld().spawnParticle(Particle.valueOf(getConfig().getString("ParticleSettings.particle").toUpperCase()), ent.getLocation(), getConfig().getInt("ParticleSettings.amount"), getConfig().getDouble("ParticleSettings.offsetX"), getConfig().getDouble("ParticleSettings.offsetY"), getConfig().getDouble("ParticleSettings.offsetZ"), getConfig().getDouble("ParticleSettings.extra"));
+                        }
+                        ent.remove();
+                    } else {
+                        e.setCancelled(true);
+                        if (Entities > getConfig().getInt("Limit")) {
+                            ent.remove();
+                        }
+                    }
+                }
+            }
+        } else {
+            for (Entity ent : entity.getWorld().getEntities()) {
+                if ( !(ent instanceof Player) && !getConfig().getStringList("ExemptWorlds").contains(entity.getWorld().getName()) || !getConfig().getStringList("ExemptEntities").contains(ent.getType().name())) {
+                    Entities++;
+                }
+                if (!(ent instanceof Player) && ent.getPassengers().isEmpty() && Entities >= getConfig().getInt("Limit")) {
+                    if (getConfig().getStringList("ExemptEntities").contains(ent.getType().name()) || getConfig().getStringList("ExemptWorlds").contains(ent.getWorld().getName())) {
+                        continue;
+                    }
+                    if (!getConfig().getBoolean("SpawnCap")) {
+                        if (getConfig().getBoolean("DisplayParticles")) {
+                            ent.getWorld().spawnParticle(Particle.valueOf(getConfig().getString("ParticleSettings.particle").toUpperCase()), ent.getLocation(), getConfig().getInt("ParticleSettings.amount"), getConfig().getDouble("ParticleSettings.offsetX"), getConfig().getDouble("ParticleSettings.offsetY"), getConfig().getDouble("ParticleSettings.offsetZ"), getConfig().getDouble("ParticleSettings.extra"));
+                        }
+                        ent.remove();
+                    } else {
+                        e.setCancelled(true);
+                        if (Entities > getConfig().getInt("Limit")) {
+                            ent.remove();
+                        }
+                    }
+                }
+            }
+        }
+        if (getConfig().getInt("CharacterLimit") > 0 && entity.getCustomName() != null && entity.getCustomName().length() >= getConfig().getInt("CharacterLimit")) {
+            entity.setCustomName(colorize(getConfig().getString("LimitReplacementText")));
+        }
+    }
+
+    @EventHandler(priority = EventPriority.NORMAL)
+    public void onNametag(PlayerInteractEntityEvent e) {
+        if (e.isCancelled()) {
+            return;
+        }
+        Entity entity = e.getRightClicked();
+        Player p = e.getPlayer();
+        if (p.getItemInHand().getType() == Material.NAME_TAG && getConfig().getInt("CharacterLimit") > 0) {
+            if (entity.getCustomName() != null && entity.getCustomName().length() >= getConfig().getInt("CharacterLimit")) {
+                entity.setCustomName(colorize(getConfig().getString("LimitReplacementText")));
+                e.setCancelled(true);
+            } else if (entity.getCustomName() == null && p.getItemInHand().getItemMeta().getDisplayName().length() >= getConfig().getInt("CharacterLimit")) {
+                entity.setCustomName(colorize(getConfig().getString("LimitReplacementText")));
+                e.setCancelled(true);
             }
         }
     }
 
-    @EventHandler
+    @EventHandler(priority = EventPriority.NORMAL)
     public void onVehicleSpawn(VehicleCreateEvent e) {
+        if (e.isCancelled()) {
+            return;
+        }
         Vehicle entity = e.getVehicle();
         int Entities = 0;
-        for (Entity ent : entity.getWorld().getNearbyEntities(entity.getLocation(), getConfig().getDouble("Radius"), 500, getConfig().getDouble("Radius"))) {
-            if (!(ent instanceof Player) && (ent.getPassengers().isEmpty())) {
-                Entities += 1;
-                if (Entities >= getConfig().getInt("Limit")) {
-                    if (getConfig().getBoolean("DisplayParticles")) {
-                        ent.getWorld().spawnParticle(Particle.SMOKE_NORMAL, ent.getLocation(), 25, 0, 0.5, 0, 0.01);
+        if (getConfig().getDouble("Radius") > 0) {
+            for (Entity ent : entity.getWorld().getNearbyEntities(entity.getLocation(), getConfig().getDouble("Radius"), getConfig().getDouble("HeightRadius"), getConfig().getDouble("Radius"))) {
+                if ( !(ent instanceof Player) && !getConfig().getStringList("ExemptWorlds").contains(entity.getWorld().getName()) || !getConfig().getStringList("ExemptEntities").contains(ent.getType().name())) {
+                    Entities++;
+                }
+                if (getConfig().getStringList("ExemptEntities").contains(ent.getType().name()) || getConfig().getStringList("ExemptWorlds").contains(ent.getWorld().getName())) {
+                    continue;
+                }
+                if ( !(ent instanceof Player) && ent.getPassengers().isEmpty() && Entities >= getConfig().getInt("Limit")) {
+                    if (!getConfig().getBoolean("SpawnCap")) {
+                        if (getConfig().getBoolean("DisplayParticles")) {
+                            ent.getWorld().spawnParticle(Particle.valueOf(getConfig().getString("ParticleSettings.particle").toUpperCase()), ent.getLocation(), getConfig().getInt("ParticleSettings.amount"), getConfig().getDouble("ParticleSettings.offsetX"), getConfig().getDouble("ParticleSettings.offsetY"), getConfig().getDouble("ParticleSettings.offsetZ"), getConfig().getDouble("ParticleSettings.extra"));
+                        }
+                        ent.remove();
+                    } else {
+                        e.setCancelled(true);
+                        if (Entities > getConfig().getInt("Limit")) {
+                            ent.remove();
+                        }
                     }
-                    ent.remove();
+                }
+            }
+        } else {
+            for (Entity ent : entity.getWorld().getEntities()) {
+                if ( !(ent instanceof Player) && !getConfig().getStringList("ExemptWorlds").contains(entity.getWorld().getName()) || !getConfig().getStringList("ExemptEntities").contains(ent.getType().name())) {
+                    Entities++;
+                }
+                if (getConfig().getStringList("ExemptEntities").contains(ent.getType().name()) || getConfig().getStringList("ExemptWorlds").contains(ent.getWorld().getName())) {
+                    continue;
+                }
+                if (!(ent instanceof Player) && ent.getPassengers().isEmpty() && Entities >= getConfig().getInt("Limit")) {
+                    if (!getConfig().getBoolean("SpawnCap")) {
+                        if (getConfig().getBoolean("DisplayParticles")) {
+                            ent.getWorld().spawnParticle(Particle.valueOf(getConfig().getString("ParticleSettings.particle").toUpperCase()), ent.getLocation(), getConfig().getInt("ParticleSettings.amount"), getConfig().getDouble("ParticleSettings.offsetX"), getConfig().getDouble("ParticleSettings.offsetY"), getConfig().getDouble("ParticleSettings.offsetZ"), getConfig().getDouble("ParticleSettings.extra"));
+                        }
+                        ent.remove();
+                    } else {
+                        e.setCancelled(true);
+                        if (Entities > getConfig().getInt("Limit")) {
+                            ent.remove();
+                        }
+                    }
                 }
             }
         }
     }
 
-    @EventHandler
-    public void onEntityPortal(EntityPortalEvent e) {
-        Entity entity = e.getEntity();
-        if (getConfig().getBoolean("EntityPortalEnter")) {
-            for (Entity ent : entity.getWorld().getNearbyEntities(entity.getLocation(), getConfig().getDouble("Radius"), 500, getConfig().getDouble("Radius"))) {
-                if (!(ent instanceof Player) && (ent.getPassengers().isEmpty())) {
-                    if (entity.getWorld().getNearbyEntities(entity.getLocation(), getConfig().getDouble("Radius"), 500, getConfig().getDouble("Radius")).size() >= getConfig().getInt("Limit")) {
-                        if (getConfig().getBoolean("DisplayParticles")) {
-                            ent.getWorld().spawnParticle(Particle.SMOKE_NORMAL, ent.getLocation(), 25, 0, 0.5, 0, 0.01);
-                        }
-                        ent.remove();
-                    }
-                }
-            }
-        } else {
+    @EventHandler(priority = EventPriority.HIGH)
+    public void onEntityPortalEnter(EntityPortalEvent e) {
+        if (e.isCancelled()) {
+            return;
+        }
+        if (e.getEntity() instanceof Player) {
+            return;
+        }
+        if (!getConfig().getBoolean("EntityPortalEnter")) {
             e.setCancelled(true);
         }
     }
 
-    @EventHandler
-    public void onEntityGateway(EntityTeleportEndGatewayEvent e) {
+    @EventHandler(priority = EventPriority.NORMAL)
+    public void onEntityPortalExit(EntityPortalExitEvent e) {
+        if (e.isCancelled()) {
+            return;
+        }
         Entity entity = e.getEntity();
-        if (getConfig().getBoolean("EntityPortalEnter")) {
-            for (Entity ent : entity.getWorld().getNearbyEntities(entity.getLocation(), getConfig().getDouble("Radius"), 500, getConfig().getDouble("Radius"))) {
-                if (!(ent instanceof Player) && (ent.getPassengers().isEmpty())) {
-                    if (entity.getWorld().getNearbyEntities(entity.getLocation(), getConfig().getDouble("Radius"), 500, getConfig().getDouble("Radius")).size() >= getConfig().getInt("Limit")) {
+        if (getConfig().getDouble("Radius") > 0) {
+            for (Entity ent : entity.getWorld().getNearbyEntities(entity.getLocation(), getConfig().getDouble("Radius"), getConfig().getDouble("HeightRadius"), getConfig().getDouble("Radius")) ) {
+                if ( !(ent instanceof Player) && ent.getPassengers().isEmpty() && ent.getWorld().getNearbyEntities(ent.getLocation(), getConfig().getDouble("Radius"), getConfig().getDouble("HeightRadius"), getConfig().getDouble("Radius")).size() >= getConfig().getInt("Limit") && !getConfig().getStringList("ExemptWorlds").contains(entity.getWorld().getName()) || !getConfig().getStringList("ExemptEntities").contains(ent.getType().name())) {
+
+                    if (getConfig().getStringList("ExemptEntities").contains(ent.getType().name()) || getConfig().getStringList("ExemptWorlds").contains(ent.getWorld().getName())) {
+                        continue;
+                    }
+
+                    if (!getConfig().getBoolean("SpawnCap")) {
                         if (getConfig().getBoolean("DisplayParticles")) {
-                            ent.getWorld().spawnParticle(Particle.SMOKE_NORMAL, ent.getLocation(), 25, 0, 0.5, 0, 0.01);
+                            ent.getWorld().spawnParticle(Particle.valueOf(getConfig().getString("ParticleSettings.particle").toUpperCase()), ent.getLocation(), getConfig().getInt("ParticleSettings.amount"), getConfig().getDouble("ParticleSettings.offsetX"), getConfig().getDouble("ParticleSettings.offsetY"), getConfig().getDouble("ParticleSettings.offsetZ"), getConfig().getDouble("ParticleSettings.extra"));
                         }
                         ent.remove();
+                    } else {
+                        e.setCancelled(true);
+                        if (ent.getWorld().getNearbyEntities(ent.getLocation(), getConfig().getDouble("Radius"), getConfig().getDouble("HeightRadius"), getConfig().getDouble("Radius")).size() > getConfig().getInt("Limit")) {
+                            ent.remove();
+                        }
                     }
                 }
             }
         } else {
-            e.setCancelled(true);
+            for (Entity ent : entity.getWorld().getEntities()) {
+                if ( !(ent instanceof Player) && ent.getPassengers().isEmpty() && ent.getWorld().getEntities().size() >= getConfig().getInt("Limit") && !getConfig().getStringList("ExemptWorlds").contains(entity.getWorld().getName()) || !getConfig().getStringList("ExemptEntities").contains(ent.getType().name())) {
+                    if (getConfig().getStringList("ExemptEntities").contains(ent.getType().name()) || getConfig().getStringList("ExemptWorlds").contains(ent.getWorld().getName())) {
+                        continue;
+                    }
+                    if (!getConfig().getBoolean("SpawnCap")) {
+                        if (getConfig().getBoolean("DisplayParticles")) {
+                            ent.getWorld().spawnParticle(Particle.valueOf(getConfig().getString("ParticleSettings.particle").toUpperCase()), ent.getLocation(), getConfig().getInt("ParticleSettings.amount"), getConfig().getDouble("ParticleSettings.offsetX"), getConfig().getDouble("ParticleSettings.offsetY"), getConfig().getDouble("ParticleSettings.offsetZ"), getConfig().getDouble("ParticleSettings.extra"));
+                        }
+                        ent.remove();
+                    } else {
+                        e.setCancelled(true);
+                        if (entity.getWorld().getEntities().size() > getConfig().getInt("Limit")) {
+                            ent.remove();
+                        }
+                    }
+                }
+            }
         }
+    }
+
+    @EventHandler(priority = EventPriority.NORMAL)
+    public void onEntityGateway(EntityTeleportEvent e) {
+        if (e.isCancelled()) {
+            return;
+        }
+        Entity entity = e.getEntity();
+        if (e.getTo().getWorld().getEnvironment() == World.Environment.THE_END) {
+            if (getConfig().getBoolean("EntityPortalEnter")) {
+                if (getConfig().getDouble("Radius") > 0) {
+                    for (Entity ent : entity.getWorld().getNearbyEntities(entity.getLocation(), getConfig().getDouble("Radius"), getConfig().getDouble("HeightRadius"), getConfig().getDouble("Radius"))) {
+                        if ( !(ent instanceof Player) && ent.getPassengers().isEmpty() && ent.getWorld().getNearbyEntities(ent.getLocation(), getConfig().getDouble("Radius"), getConfig().getDouble("HeightRadius"), getConfig().getDouble("Radius")).size() >= getConfig().getInt("Limit") && !getConfig().getStringList("ExemptWorlds").contains(entity.getWorld().getName()) || !getConfig().getStringList("ExemptEntities").contains(ent.getType().name())) {
+
+                            if (getConfig().getStringList("ExemptEntities").contains(ent.getType().name()) || getConfig().getStringList("ExemptWorlds").contains(ent.getWorld().getName())) {
+                                continue;
+                            }
+
+                            if (!getConfig().getBoolean("SpawnCap")) {
+                                if (getConfig().getBoolean("DisplayParticles")) {
+                                    ent.getWorld().spawnParticle(Particle.valueOf(getConfig().getString("ParticleSettings.particle").toUpperCase()), ent.getLocation(), getConfig().getInt("ParticleSettings.amount"), getConfig().getDouble("ParticleSettings.offsetX"), getConfig().getDouble("ParticleSettings.offsetY"), getConfig().getDouble("ParticleSettings.offsetZ"), getConfig().getDouble("ParticleSettings.extra"));
+                                }
+                                ent.remove();
+                            } else {
+                                e.setCancelled(true);
+                                if (entity.getWorld().getEntities().size() > getConfig().getInt("Limit")) {
+                                    ent.remove();
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    for (Entity ent : entity.getWorld().getEntities()) {
+                        if ( !(ent instanceof Player) && ent.getPassengers().isEmpty() && entity.getWorld().getEntities().size() >= getConfig().getInt("Limit") && !getConfig().getStringList("ExemptWorlds").contains(entity.getWorld().getName()) || !getConfig().getStringList("ExemptEntities").contains(ent.getType().name())) {
+
+                            if (getConfig().getStringList("ExemptEntities").contains(ent.getType().name()) || getConfig().getStringList("ExemptWorlds").contains(ent.getWorld().getName())) {
+                                continue;
+                            }
+
+                            if (!getConfig().getBoolean("SpawnCap")) {
+                                if (getConfig().getBoolean("DisplayParticles")) {
+                                    ent.getWorld().spawnParticle(Particle.valueOf(getConfig().getString("ParticleSettings.particle").toUpperCase()), ent.getLocation(), getConfig().getInt("ParticleSettings.amount"), getConfig().getDouble("ParticleSettings.offsetX"), getConfig().getDouble("ParticleSettings.offsetY"), getConfig().getDouble("ParticleSettings.offsetZ"), getConfig().getDouble("ParticleSettings.extra"));
+                                }
+                                ent.remove();
+                            } else {
+                                e.setCancelled(true);
+                                if (entity.getWorld().getEntities().size() > getConfig().getInt("Limit")) {
+                                    ent.remove();
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                e.setCancelled(true);
+            }
+        }
+    }
+
+    public static List<String> WorldsList() {
+        final Server server = Bukkit.getServer();
+        final List<String> WorldList = Lists.newArrayList();
+        for (final World w : server.getWorlds()) {
+            WorldList.add(w.getName());
+        }
+        return WorldList;
+    }
+
+    public static List<String> EntityList() {
+        final List<String> EntityList = Lists.newArrayList();
+        for (final EntityType type : EntityType.values()) {
+            EntityList.add(type.name());
+        }
+        return EntityList;
+    }
+
+    public static List<String> tabComplete(String t, List<?> s) {
+        List<String> ret = new ArrayList<>();
+        List<String> strs = new ArrayList<>();
+        for (Object a : s) strs.add(a.toString());
+        for (String b : strs) if (b.toLowerCase().startsWith(t.toLowerCase())) ret.add(b);
+        return ret;
+    }
+
+    public static List<String> tabComplete(String t, String... s) {
+        List<String> ret = new ArrayList<>();
+        List<String> strs = new ArrayList<>();
+        for (Object a : s) strs.add(a.toString());
+        for (String b : strs) if (b.toLowerCase().startsWith(t.toLowerCase())) ret.add(b);
+        return ret;
     }
 
     public static EntityLimiter getPlugin() {
         return plugin;
+    }
+    public static String colorize(String message) {
+        return translateAlternateColorCodes('&', message);
     }
 }

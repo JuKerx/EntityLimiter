@@ -1,15 +1,16 @@
 name: EntityLimiter
-version: '${project.version}'
-description: A lightweight entity limiter plugin
-author: jukerx
+version: '1.5'
 main: jukerx.entitylimiter.EntityLimiter
-api-version: 1.19
+api-version: '1.13'
 load: STARTUP
+author: jukerx
+website: https://github.com/JuKerx/EntityLimiter
+description: A lightweight entity limiter plugin
+folia-supported: true
 commands:
   entitylimiter:
     description: Command for EntityLimiter plugin.
-    usage: /entitylimiter reload
-    aliases: [el]
+    aliases: [ el ]
 
 permissions:
   entitylimiter.*:
