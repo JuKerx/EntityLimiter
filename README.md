@@ -11,5 +11,6 @@ Supports 1.8 up to 1.20+ with Bukkit, Spigot, Paper, Purpur and Folia.
 - /el particles
 - /el characterlimit
 - /el spawncap
-- /el exempt
+- /el exemptworlds
+- /el exemptentities
 - /el reload
