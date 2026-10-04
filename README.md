@@ -1,4 +1,4 @@
-# EntityLimiter
+# EntityLimiter (outdated and unsupported)
 
 Supports 1.8 up to 1.20+ with Bukkit, Spigot, Paper, Purpur and Folia.
 
